@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+bun.lockb
+
+# output & build artifacts
+out/
+dist/
+*.exe
+*.tgz
+cardx-email-gen
+
+# execution folders (ข้อมูลพนักงาน - ห้ามขึ้น Git เด็ดขาด)
+inputs/
+processed_results/
+archives/
+
+# code coverage & logs
+coverage/
+*.lcov
+logs/
+*.log
+
+# environment & secrets
+.env
+.env.*
+secrets.json
+credentials.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp

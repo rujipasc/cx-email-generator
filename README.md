@@ -9,7 +9,7 @@
 - `archives/`: ไฟล์ต้นฉบับที่ประมวลผลเสร็จแล้วจะถูกย้ายมาเก็บที่นี่เพื่อป้องกันการรันซ้ำ
 
 ## 🛠 How to Use
-1. ดาวน์โหลดไฟล์ `cardx-email-gen.exe` จากหน้า [Releases](https://github.com/your-repo/releases).
+1. ดาวน์โหลดไฟล์ `cardx-email-gen.exe` จากหน้า [Releases](https://github.com/cx-email-generator/releases).
 2. นำไฟล์ไปวางในโฟลเดอร์ที่ต้องการใช้งาน.
 3. นำไฟล์ Excel รายชื่อพนักงานวางไว้ในโฟลเดอร์ `inputs/`.
    - *หมายเหตุ: หัวตารางควรมีคอลัมน์ `Name`, `Surname`, และ `Employee ID`*

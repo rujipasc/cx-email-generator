@@ -28,17 +28,16 @@ async function waitAnyKey() {
 async function run() {
   console.clear();
   console.log("==================================================");
-  console.log("        CardX Email Generator Tool v1.0.5");
+  console.log("        CardX Email Generator Tool v1.0.6"); // ขยับเวอร์ชันเล็กน้อย
   console.log("==================================================");
 
-  // 1. Network & Security Setup
   const proxyUrl = getSystemProxy();
   if (proxyUrl) {
     console.log(`[NETWORK] Proxy Detected: ${proxyUrl}`);
     process.env.HTTP_PROXY = proxyUrl;
     process.env.HTTPS_PROXY = proxyUrl;
   }
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"; // Bypass SSL สำหรับเน็ตองค์กร
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
   console.log("[NETWORK] SSL Verification: Disabled (Bypass mode)");
 
   const INPUT_DIR = "inputs";
@@ -46,7 +45,6 @@ async function run() {
   const ARCHIVE_DIR = "archives";
 
   try {
-    // 2. Folder Automation (สร้างโฟลเดอร์ถ้ายังไม่มี)
     [INPUT_DIR, OUTPUT_DIR, ARCHIVE_DIR].forEach(dir => {
       const p = resolve(process.cwd(), dir);
       if (!existsSync(p)) {
@@ -55,20 +53,16 @@ async function run() {
       }
     });
 
-    // 3. Authentication & History Sync
-    // (ใช้ getOrRequestSecret ตัวที่เป็น Export-CliXml ที่เราแก้กันก่อนหน้า)
     const secret = await getOrRequestSecret();
     const token = await getAccessToken(secret);
     const historySet = await loadEmailHistory(token);
 
-    // 4. File Scanning
     const files = readdirSync(INPUT_DIR).filter(
       (file) => file.endsWith(".xlsx") && !file.startsWith("~$")
     );
 
     if (files.length === 0) {
       console.log("\n[!] ไม่พบไฟล์ในโฟลเดอร์ 'inputs'");
-      console.log("[!] กรุณานำไฟล์ Excel มาวางแล้วรันโปรแกรมใหม่อีกครั้ง");
     } else {
       console.log(`\n[INFO] พบไฟล์ทั้งหมด ${files.length} ไฟล์...`);
 
@@ -77,23 +71,17 @@ async function run() {
         console.log(`\n[PROCESS] Processing: ${file}`);
 
         try {
-          // 🚀 [THE FIX]: ใช้ fs.readFileSync อ่านเป็น Buffer เหมือนโปรเจกต์ Recruitment
-          // วิธีนี้จะช่วยเลี่ยงปัญหา Windows Lock และ Sensitivity Label ในบางกรณีได้ดีกว่า
+          // อ่านไฟล์แบบ Buffer (ท่าเดียวกับโปรเจกต์ Recruitment)
           const fileBuffer = fs.readFileSync(inputPath);
-          const workbook = XLSX.read(fileBuffer, { 
-            type: "buffer", 
-            cellDates: true 
-          });
+          const workbook = XLSX.read(fileBuffer, { type: "buffer", cellDates: true });
 
           const firstSheetName = workbook.SheetNames[0];
-          if (!firstSheetName || !workbook.Sheets[firstSheetName]) continue;
+          if (!firstSheetName) continue;
           const sheet = workbook.Sheets[firstSheetName];
-          
           const data = XLSX.utils.sheet_to_json(sheet!) as any[];
           const results = [];
 
           for (const row of data) {
-            // Logic การดึงชื่อและสร้าง Candidate Email (เหมือนเดิม)
             const rawFName = (row.name || row.Name || "").toString().trim();
             const rawLName = (row.surname || row.Surname || "").toString().trim();
             const fName = rawFName.toLowerCase().replace(/\s+/g, "");
@@ -111,7 +99,6 @@ async function run() {
               candidates.push(`${fName}.${lName.substring(0, i)}${domain}`);
             }
 
-            // ตรวจสอบ 3 ด่าน (AAD, Recycle Bin, SharePoint History)
             for (const email of candidates) {
               console.log(`   - Checking: ${email}`);
               const isTakenInAAD = await isEmailReserved(token, email);
@@ -119,7 +106,6 @@ async function run() {
 
               if (!isTakenInAAD && !isTakenInHistory) {
                 finalEmail = email;
-                // บันทึกลง SharePoint History
                 await addHistoryRecord(token, {
                   name: rawFName,
                   surname: rawLName,
@@ -134,26 +120,28 @@ async function run() {
             results.push({ ...row, email: finalEmail });
           }
 
-          // 5. Save & Archive
+          // บันทึกไฟล์ผลลัพธ์
           const outputName = `result_${parse(file).name}.xlsx`;
-          const outputPath = resolve(OUTPUT_DIR, outputName);
+          const outputDir = resolve(process.cwd(), OUTPUT_DIR);
+          const outputPath = resolve(outputDir, outputName);
+
           const newWb = XLSX.utils.book_new();
           XLSX.utils.book_append_sheet(newWb, XLSX.utils.json_to_sheet(results), "Result");
-          XLSX.writeFile(newWb, outputPath);
 
-          // ย้ายไฟล์ไป archives เมื่อทำเสร็จ
-          renameSync(inputPath, resolve(ARCHIVE_DIR, file));
-          console.log(`   ✅ [SUCCESS]: Saved to ${outputName}`);
+          const wbBuffer = XLSX.write(newWb, { bookType: 'xlsx', type: 'buffer'});
+          fs.writeFileSync(outputPath, wbBuffer);
+          console.log(`   ✅ [Success]: Saved to ${outputName}`);
+
+          // ย้ายไป Archive
+          const archiveDirFull = resolve(process.cwd(), ARCHIVE_DIR);
+          renameSync(inputPath, join(archiveDirFull, file));
+          console.log(`   📦 [ARCHIVED]: Original file moved to ${ARCHIVE_DIR}`);
 
         } catch (fileErr: any) {
-          if (fileErr.code === 'EBUSY') {
-            console.error(`   ❌ [ERROR]: ไฟล์ถูก Excel ล็อกไว้ กรุณาปิดไฟล์ "${file}" ก่อนรันใหม่`);
-          } else {
-            console.error(`   ❌ [ERROR]: ไม่สามารถประมวลผลไฟล์ "${file}" ได้ - ${fileErr.message}`);
-          }
-          continue; // ข้ามไปทำไฟล์ถัดไป
+          console.error(`   ❌ [ERROR] ในไฟล์ ${file}:`, fileErr.message);
         }
-      }
+      } // ปิดลูป for (files)
+
       console.log("\n==================================================");
       console.log("         ✨ All processes completed! ✨");
       console.log("==================================================");
